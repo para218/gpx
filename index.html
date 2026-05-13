@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>GPX Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+KR:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --green: #39d353;
+    --green-dim: #1a6130;
+    --red: #f85149;
+    --yellow: #e3b341;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    gap: 14px;
+  }
+
+  /* Header */
+  header {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    width: 36px; height: 36px;
+    background: var(--green);
+    border-radius: 8px;
+    display: grid; place-items: center;
+    font-size: 18px;
+  }
+  header h1 { font-family: var(--mono); font-size: 1.2rem; letter-spacing: 2px; color: var(--green); }
+  header span { font-size: 0.7rem; color: var(--muted); margin-top: 2px; display: block; }
+
+  /* Status bar */
+  .status-bar {
+    width: 100%; max-width: 480px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; }
+  .status-dot.stopped { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-text { font-family: var(--mono); font-size: 0.85rem; color: var(--text); }
+  .status-count { margin-left: auto; font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+
+  /* Coords panel */
+  .coords-panel {
+    width: 100%; max-width: 480px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .coord-box { display: flex; flex-direction: column; gap: 4px; }
+  .coord-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .coord-value { font-family: var(--mono); font-size: 0.95rem; color: var(--green); }
+  .coord-value.empty { color: var(--muted); }
+
+  /* Stats row */
+  .stats-row {
+    width: 100%; max-width: 480px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .stat-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .stat-value { font-family: var(--mono); font-size: 1rem; color: var(--yellow); }
+
+  /* Log */
+  .log-box {
+    width: 100%; max-width: 480px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    max-height: 140px;
+    overflow-y: auto;
+  }
+  .log-box::-webkit-scrollbar { width: 4px; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-title { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .log-entry { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); padding: 2px 0; border-bottom: 1px solid #21262d; }
+  .log-entry.new { color: var(--green); }
+  .log-entry span.ts { color: #444d56; margin-right: 8px; }
+
+  /* Buttons */
+  .btn-row {
+    width: 100%; max-width: 480px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  button {
+    padding: 16px;
+    border: none;
+    border-radius: 10px;
+    font-family: var(--mono);
+    font-size: 1rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-start {
+    background: var(--green);
+    color: #000;
+  }
+  .btn-start:hover { filter: brightness(1.15); }
+  .btn-start:disabled { background: var(--green-dim); color: #333; cursor: not-allowed; }
+
+  .btn-stop {
+    background: transparent;
+    color: var(--red);
+    border: 1px solid var(--red);
+  }
+  .btn-stop:hover { background: var(--red); color: #fff; }
+  .btn-stop:disabled { color: var(--border); border-color: var(--border); cursor: not-allowed; background: transparent; }
+
+  .btn-download {
+    grid-column: span 2;
+    background: var(--panel);
+    color: var(--yellow);
+    border: 1px solid var(--yellow);
+    font-size: 0.9rem;
+  }
+  .btn-download:hover { background: var(--yellow); color: #000; }
+  .btn-download:disabled { color: var(--border); border-color: var(--border); cursor: not-allowed; }
+
+  /* Error */
+  .error-box {
+    width: 100%; max-width: 480px;
+    background: #2d1117;
+    border: 1px solid var(--red);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    color: var(--red);
+    display: none;
+  }
+  .error-box.show { display: block; }
+
+  /* Interval selector */
+  .settings-row {
+    width: 100%; max-width: 480px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .settings-row label { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
+  .settings-row select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  /* Backup banner */
+  .backup-banner {
+    width: 100%; max-width: 480px;
+    background: #111d2b;
+    border: 1px solid #1f6feb;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: none;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .backup-banner.show { display: flex; }
+  .backup-banner .bb-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 2px; }
+  .backup-banner .bb-body { flex: 1; }
+  .backup-banner .bb-title { font-size: 0.75rem; color: #58a6ff; font-weight: 700; margin-bottom: 4px; }
+  .backup-banner .bb-msg { font-size: 0.72rem; color: #8b949e; line-height: 1.5; }
+  .backup-banner .bb-btns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .bb-btn {
+    padding: 5px 12px !important;
+    font-size: 0.72rem !important;
+    border-radius: 6px !important;
+    letter-spacing: 0 !important;
+  }
+  .bb-btn-restore { background: #1f6feb !important; color: #fff !important; border: none !important; }
+  .bb-btn-discard { background: transparent !important; color: var(--red) !important; border: 1px solid var(--red) !important; }
+
+  footer {
+    font-size: 0.65rem;
+    color: #30363d;
+    text-align: center;
+    padding-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🛰️</div>
+  <div>
+    <h1>GPX TRACKER</h1>
+    <span>GPS → GPX 파일 저장기</span>
+  </div>
+</header>
+
+<div class="backup-banner" id="backupBanner">
+  <div class="bb-icon">💾</div>
+  <div class="bb-body">
+    <div class="bb-title">이전 트래킹 데이터 발견!</div>
+    <div class="bb-msg" id="backupMsg">자동 백업된 데이터가 있어요. 이어서 기록할까요?</div>
+    <div class="bb-btns">
+      <button class="bb-btn bb-btn-restore" onclick="restoreBackup()">↩ 복원하기</button>
+      <button class="bb-btn bb-btn-discard" onclick="discardBackup()">🗑 삭제</button>
+    </div>
+  </div>
+</div>
+
+
+  <div class="status-dot" id="statusDot"></div>
+  <div class="status-text" id="statusText">대기 중</div>
+  <div class="status-count" id="ptCount">0 pts</div>
+</div>
+
+<div class="coords-panel">
+  <div class="coord-box">
+    <div class="coord-label">위도 (Lat)</div>
+    <div class="coord-value empty" id="dispLat">--</div>
+  </div>
+  <div class="coord-box">
+    <div class="coord-label">경도 (Lon)</div>
+    <div class="coord-value empty" id="dispLon">--</div>
+  </div>
+  <div class="coord-box">
+    <div class="coord-label">고도 (Alt)</div>
+    <div class="coord-value empty" id="dispAlt">-- m</div>
+  </div>
+  <div class="coord-box">
+    <div class="coord-label">정확도</div>
+    <div class="coord-value empty" id="dispAcc">-- m</div>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat-box">
+    <div class="stat-label">경과 시간</div>
+    <div class="stat-value" id="elapsed">00:00</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">기록 포인트</div>
+    <div class="stat-value" id="ptCountBig">0</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">거리 (추정)</div>
+    <div class="stat-value" id="distVal">0m</div>
+  </div>
+</div>
+
+<div class="settings-row">
+  <label>⏱ 기록 간격</label>
+  <select id="intervalSelect">
+    <option value="3000">3초</option>
+    <option value="5000" selected>5초</option>
+    <option value="10000">10초</option>
+    <option value="30000">30초</option>
+  </select>
+</div>
+
+<div class="log-box">
+  <div class="log-title">📋 기록 로그</div>
+  <div id="logContainer"><div class="log-entry"><span class="ts">--:--:--</span>앱 준비 완료. 시작 버튼을 누르세요.</div></div>
+</div>
+
+<div class="error-box" id="errorBox"></div>
+
+<div class="btn-row">
+  <button class="btn-start" id="btnStart" onclick="startTracking()">▶ 시작</button>
+  <button class="btn-stop"  id="btnStop"  onclick="stopTracking()" disabled>■ 정지</button>
+  <button class="btn-download" id="btnDownload" onclick="downloadGPX()" disabled>⬇ GPX 파일 다운로드</button>
+</div>
+
+<footer>Geolocation API · GPX 1.1 · localStorage 자동백업 · © GPX Tracker Web App</footer>
+
+<script>
+  // ── localStorage 키 ────────────────────────────────────
+  const LS_KEY = 'gpxtracker_backup';
+
+  // ── 앱 시작 시: 백업 데이터 확인 ──────────────────────
+  window.addEventListener('load', () => {
+    checkBackup();
+  });
+
+  function checkBackup() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (!data.points || data.points.length === 0) return;
+
+      const savedAt = new Date(data.savedAt).toLocaleString('ko-KR');
+      document.getElementById('backupMsg').textContent =
+        `${savedAt} 저장된 ${data.points.length}개 포인트가 있어요. 이어서 기록할까요?`;
+      document.getElementById('backupBanner').classList.add('show');
+    } catch(e) {
+      localStorage.removeItem(LS_KEY);
+    }
+  }
+
+  function restoreBackup() {
+    try {
+      const data = JSON.parse(localStorage.getItem(LS_KEY));
+      trackPoints = data.points;
+      totalDist = data.totalDist || 0;
+      lastPos = data.lastPos || null;
+      updateStats();
+      document.getElementById('btnDownload').disabled = false;
+      document.getElementById('backupBanner').classList.remove('show');
+      addLog(`✅ 복원 완료: ${trackPoints.length}개 포인트`);
+      setStatus('stopped', `복원됨 — ${trackPoints.length}개 포인트`);
+    } catch(e) {
+      addLog('⚠ 복원 실패');
+      discardBackup();
+    }
+  }
+
+  function discardBackup() {
+    localStorage.removeItem(LS_KEY);
+    document.getElementById('backupBanner').classList.remove('show');
+    addLog('🗑 백업 데이터 삭제됨');
+  }
+
+  // ── 자동 백업 저장 (포인트 기록마다 호출) ─────────────
+  function saveBackup() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        points: trackPoints,
+        totalDist,
+        lastPos,
+        savedAt: new Date().toISOString()
+      }));
+    } catch(e) {
+      // localStorage 용량 초과 시 무시
+      addLog('⚠ 백업 저장 실패 (용량 초과?)');
+    }
+  }
+
+  // ── 상태 변수 ──────────────────────────────────────────
+  let trackPoints = [];   // {lat, lon, alt, time} 배열
+  let watchId = null;     // GPS 감시 ID
+  let timerInterval = null;
+  let startTime = null;
+  let totalDist = 0;      // 총 거리 (미터)
+  let lastPos = null;
+
+  // ── GPS 시작 ───────────────────────────────────────────
+  function startTracking() {
+    if (!navigator.geolocation) {
+      showError("이 브라우저는 GPS를 지원하지 않아요. Chrome 모바일을 사용해 주세요.");
+      return;
+    }
+
+    trackPoints = [];
+    totalDist = 0;
+    lastPos = null;
+    updateStats();
+    setStatus('active', 'GPS 신호 찾는 중...');
+    addLog('추적 시작됨');
+
+    document.getElementById('btnStart').disabled = true;
+    document.getElementById('btnStop').disabled = false;
+    document.getElementById('btnDownload').disabled = true;
+    document.getElementById('intervalSelect').disabled = true;
+    hideError();
+
+    startTime = Date.now();
+    timerInterval = setInterval(updateElapsed, 1000);
+
+    const interval = parseInt(document.getElementById('intervalSelect').value);
+
+    // 첫 위치 즉시 기록 후, 이후 setInterval로 주기적 기록
+    navigator.geolocation.getCurrentPosition(onPosition, onError, gpsOptions());
+
+    watchId = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(onPosition, onError, gpsOptions());
+    }, interval);
+  }
+
+  function gpsOptions() {
+    return { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+  }
+
+  function onPosition(pos) {
+    const { latitude: lat, longitude: lon, altitude: alt, accuracy: acc } = pos.coords;
+    const time = new Date().toISOString();
+
+    // 화면 업데이트
+    setCoord('dispLat', lat.toFixed(6));
+    setCoord('dispLon', lon.toFixed(6));
+    setCoord('dispAlt', (alt !== null ? alt.toFixed(1) : '0') + ' m');
+    setCoord('dispAcc', acc.toFixed(1) + ' m');
+    setStatus('active', '추적 중');
+
+    // 거리 계산
+    if (lastPos) {
+      totalDist += haversine(lastPos.lat, lastPos.lon, lat, lon);
+    }
+    lastPos = { lat, lon };
+
+    // 포인트 저장
+    trackPoints.push({ lat, lon, alt: alt || 0, time });
+    updateStats();
+    saveBackup(); // ← 자동백업
+
+    const ts = time.slice(11, 19);
+    addLog(`[${ts}] ${lat.toFixed(5)}, ${lon.toFixed(5)}  ±${acc.toFixed(0)}m`);
+  }
+
+  function onError(err) {
+    const msgs = {
+      1: "위치 권한이 거부됐어요. 브라우저 주소창 왼쪽 자물쇠 아이콘 → 위치 허용 후 다시 시도하세요.",
+      2: "GPS 신호를 찾을 수 없어요. 실외로 이동하거나 잠시 후 다시 시도하세요.",
+      3: "GPS 응답 시간이 초과됐어요. 다시 시도 중..."
+    };
+    showError(msgs[err.code] || "알 수 없는 GPS 오류");
+    addLog('⚠ GPS 오류: ' + err.message);
+  }
+
+  // ── GPS 정지 ───────────────────────────────────────────
+  function stopTracking() {
+    if (watchId) { clearInterval(watchId); watchId = null; }
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+
+    setStatus('stopped', `정지됨 — ${trackPoints.length}개 포인트 기록`);
+    addLog(`추적 정지. 총 ${trackPoints.length}개 포인트`);
+
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnStop').disabled = true;
+    document.getElementById('btnDownload').disabled = trackPoints.length === 0;
+    document.getElementById('intervalSelect').disabled = false;
+  }
+
+  // ── GPX 생성 및 다운로드 ──────────────────────────────
+  function downloadGPX() {
+    if (trackPoints.length === 0) return;
+
+    const trackName = `Track_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}`;
+    let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GPX Tracker WebApp"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1
+    http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata><name>${trackName}</name><time>${new Date().toISOString()}</time></metadata>
+  <trk><name>${trackName}</name><trkseg>\n`;
+
+    trackPoints.forEach(p => {
+      gpx += `    <trkpt lat="${p.lat}" lon="${p.lon}">
+      <ele>${p.alt.toFixed(1)}</ele>
+      <time>${p.time}</time>
+    </trkpt>\n`;
+    });
+
+    gpx += `  </trkseg></trk>\n</gpx>`;
+
+    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${trackName}.gpx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    localStorage.removeItem(LS_KEY); // 다운로드 후 백업 삭제
+    addLog(`GPX 파일 다운로드: ${trackName}.gpx`);
+  }
+
+  // ── 유틸 함수들 ────────────────────────────────────────
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function updateElapsed() {
+    if (!startTime) return;
+    const sec = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(sec/60)).padStart(2,'0');
+    const s = String(sec % 60).padStart(2,'0');
+    document.getElementById('elapsed').textContent = `${m}:${s}`;
+  }
+
+  function updateStats() {
+    const n = trackPoints.length;
+    document.getElementById('ptCount').textContent = `${n} pts`;
+    document.getElementById('ptCountBig').textContent = n;
+    const d = totalDist >= 1000
+      ? (totalDist/1000).toFixed(2) + 'km'
+      : Math.round(totalDist) + 'm';
+    document.getElementById('distVal').textContent = d;
+  }
+
+  function setCoord(id, val) {
+    const el = document.getElementById(id);
+    el.textContent = val;
+    el.classList.remove('empty');
+  }
+
+  function setStatus(state, msg) {
+    const dot = document.getElementById('statusDot');
+    dot.className = 'status-dot ' + state;
+    document.getElementById('statusText').textContent = msg;
+  }
+
+  function addLog(msg) {
+    const ts = new Date().toTimeString().slice(0,8);
+    const container = document.getElementById('logContainer');
+    const el = document.createElement('div');
+    el.className = 'log-entry new';
+    el.innerHTML = `<span class="ts">${ts}</span>${msg}`;
+    container.prepend(el);
+    setTimeout(() => el.classList.remove('new'), 2000);
+    // 최대 50개
+    while (container.children.length > 50) container.removeChild(container.lastChild);
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorBox');
+    el.textContent = '⚠ ' + msg;
+    el.classList.add('show');
+  }
+  function hideError() {
+    document.getElementById('errorBox').classList.remove('show');
+  }
+</script>
+</body>
+</html>
